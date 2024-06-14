@@ -1,0 +1,108 @@
+import pandas as pd
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+df = pd.read_csv('imdb_dataset.csv')
+
+
+def preprocess_text(text):
+    # Tokenization
+    tokens = word_tokenize(text)
+    
+    # Remove stop words
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [word for word in tokens if word.lower() not in stop_words]
+    
+    # Stemming
+    stemmer = PorterStemmer()
+    stemmed_tokens = [stemmer.stem(word) for word in filtered_tokens]
+    
+    # Lemmatization
+    lemmatizer = WordNetLemmatizer()
+    lemmatized_tokens = [lemmatizer.lemmatize(word) for word in stemmed_tokens]
+    
+    # Join the tokens back into text
+    preprocessed_text = ' '.join(lemmatized_tokens)
+    
+    return preprocessed_text
+
+
+df['Preprocessed_Overview'] = df['Overview'].apply(preprocess_text)
+
+
+X = df['Preprocessed_Overview']
+y = df['IMDB_Rating'] >= 8.0  # Positive sentiment for IMDb ratings >= 8.0
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+
+vectorizer = CountVectorizer()
+X_train_vec = vectorizer.fit_transform(X_train)
+X_test_vec = vectorizer.transform(X_test)
+
+
+nb_param_grid = {'alpha': [0.1, 0.5, 1.0]}
+nb_grid_search = GridSearchCV(MultinomialNB(), nb_param_grid, cv=3)
+nb_grid_search.fit(X_train_vec, y_train)
+nb_best_clf = nb_grid_search.best_estimator_
+
+
+svm_param_grid = {'C': [0.1, 1, 10], 'kernel': ['linear', 'rbf']}
+svm_grid_search = GridSearchCV(SVC(), svm_param_grid, cv=3)
+svm_grid_search.fit(X_train_vec, y_train)
+svm_best_clf = svm_grid_search.best_estimator_
+
+nb_y_pred = nb_best_clf.predict(X_test_vec)
+nb_accuracy = accuracy_score(y_test, nb_y_pred)
+print("Naive Bayes Accuracy:", nb_accuracy)
+
+svm_y_pred = svm_best_clf.predict(X_test_vec)
+svm_accuracy = accuracy_score(y_test, svm_y_pred)
+print("SVM Accuracy:", svm_accuracy)
+
+
+print("Naive Bayes Classification Report:")
+print(classification_report(y_test, nb_y_pred))
+print("SVM Classification Report:")
+print(classification_report(y_test, svm_y_pred))
+
+models = ['Naive Bayes', 'SVM']
+accuracies = [nb_accuracy, svm_accuracy]
+plt.figure(figsize=(8, 6))
+plt.bar(models, accuracies, color=['blue', 'orange'])
+plt.xlabel('Models')
+plt.ylabel('Accuracy')
+plt.title('Model Accuracy Comparison')
+plt.ylim(0.0, 1.0)
+plt.show()
+
+
+nb_cm = confusion_matrix(y_test, nb_y_pred)
+plt.figure(figsize=(8, 6))
+sns.heatmap(nb_cm, annot=True, cmap='Blues', fmt='d', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('Naive Bayes Confusion Matrix')
+plt.show()
+
+svm_cm = confusion_matrix(y_test, svm_y_pred)
+plt.figure(figsize=(8, 6))
+sns.heatmap(svm_cm, annot=True, cmap='Oranges', fmt='d', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('SVM Confusion Matrix')
+plt.show()
