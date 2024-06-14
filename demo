@@ -1,0 +1,46 @@
+!pip install spacy 
+!pip install nltk 
+! python -m spacy download en_core_web_sm
+
+import nltk
+nltk.download('movie_reviews')
+# Step 1: Import necessary libraries
+import nltk
+import random
+from nltk.corpus import movie_reviews
+
+# Step 2: Prepare the data
+documents = [(list(movie_reviews.words(fileid)), category)
+             for category in movie_reviews.categories()
+             for fileid in movie_reviews.fileids(category)]
+
+# Step 3: Shuffle the documents
+random.shuffle(documents)
+
+# Step 4: Define a feature extractor function
+all_words = nltk.FreqDist(w.lower() for w in movie_reviews.words())
+word_features = list(all_words)[:2000]
+
+def document_features(document):
+    document_words = set(document)
+    features = {}
+    for word in word_features:
+        features['contains({})'.format(word)] = (word in document_words)
+    return features
+
+# Step 5: Create feature sets
+featuresets = [(document_features(d), c) for (d,c) in documents]
+
+# Step 6: Split the data into training and testing sets
+train_set, test_set = featuresets[:1500], featuresets[1500:]
+
+# Step 7: Train a Naive Bayes classifier
+classifier = nltk.NaiveBayesClassifier.train(train_set)
+
+# Step 8: Test the classifier
+print("Accuracy:", nltk.classify.accuracy(classifier, test_set))
+
+# Step 9: Example usage
+review = "This movie is fantastic!"
+features = document_features(review.split())
+print("Sentiment:", classifier.classify(features))
