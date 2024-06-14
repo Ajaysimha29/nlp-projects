@@ -1,0 +1,91 @@
+import pandas as pd
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.feature_extraction.text import Tokenizer
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, LSTM, Dense
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+df = pd.read_csv('imdb_dataset.csv')
+
+def preprocess_text(text):
+    # Tokenization
+    tokens = word_tokenize(text)
+    
+    # Remove stop words
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [word for word in tokens if word.lower() not in stop_words]
+    
+    # Lemmatization
+    lemmatizer = WordNetLemmatizer()
+    lemmatized_tokens = [lemmatizer.lemmatize(word) for word in filtered_tokens]
+    
+    # Join the tokens back into text
+    preprocessed_text = ' '.join(lemmatized_tokens)
+    
+    return preprocessed_text
+
+# Apply text preprocessing to the 'Overview' column
+df['Preprocessed_Overview'] = df['Overview'].apply(preprocess_text)
+
+X = df['Preprocessed_Overview']
+y = df['IMDB_Rating'] >= 8.0  # Positive sentiment for IMDb ratings >= 8.0
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+tokenizer = Tokenizer(num_words=5000)
+tokenizer.fit_on_texts(X_train)
+X_train_seq = tokenizer.texts_to_sequences(X_train)
+X_test_seq = tokenizer.texts_to_sequences(X_test)
+
+max_len = max(len(sequence) for sequence in X_train_seq)
+X_train_pad = pad_sequences(X_train_seq, maxlen=max_len, padding='post')
+X_test_pad = pad_sequences(X_test_seq, maxlen=max_len, padding='post')
+
+
+model = Sequential()
+model.add(Embedding(input_dim=5000, output_dim=128, input_length=max_len))
+model.add(LSTM(units=64, dropout=0.2, recurrent_dropout=0.2))
+model.add(Dense(units=1, activation='sigmoid'))
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+
+history = model.fit(X_train_pad, y_train, epochs=5, batch_size=32, validation_data=(X_test_pad, y_test), verbose=1)
+
+y_pred_rnn = model.predict_classes(X_test_pad)
+y_pred_rnn = y_pred_rnn.flatten()
+
+
+accuracy_rnn = accuracy_score(y_test, y_pred_rnn)
+print("RNN Accuracy:", accuracy_rnn)
+
+print("RNN Classification Report:")
+print(classification_report(y_test, y_pred_rnn))
+
+
+models = ['Naive Bayes', 'SVM', 'RNN']
+accuracies = [nb_accuracy, svm_accuracy, accuracy_rnn]
+plt.figure(figsize=(8, 6))
+plt.bar(models, accuracies, color=['blue', 'orange', 'green'])
+plt.xlabel('Models')
+plt.ylabel('Accuracy')
+plt.title('Model Accuracy Comparison')
+plt.ylim(0.0, 1.0)
+plt.show()
+
+rnn_cm = confusion_matrix(y_test, y_pred_rnn)
+plt.figure(figsize=(8, 6))
+sns.heatmap(rnn_cm, annot=True, cmap='Greens', fmt='d', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'])
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('RNN Confusion Matrix')
+plt.show()
