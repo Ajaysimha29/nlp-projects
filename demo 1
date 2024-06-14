@@ -1,0 +1,18 @@
+import nltk
+nltk.download('vader_lexicon')
+
+
+from nltk.sentiment import SentimentIntensityAnalyzer
+
+sid = SentimentIntensityAnalyzer()
+
+text = "This movie is great! I really enjoyed it."
+
+scores = sid.polarity_scores(text)
+
+if scores['compound'] > 0:
+    print("Positive sentiment")
+elif scores['compound'] < 0:
+    print("Negative sentiment")
+else:
+    print("Neutral sentiment")
